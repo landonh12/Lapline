@@ -5,8 +5,12 @@ It runs entirely in your browser: no install, no server, and your data never lea
 
 ## Run it
 
-Double-click `index.html` (Chrome, Edge or Firefox), then drag in one or more `.drk` files.
-RaceStudio2 stores downloads in `C:\AIM_SPORT\RaceStudio2\DATA`.
+**Online:** https://landonh12.github.io/Lapline/ works on any computer (Windows, Mac, Linux) in Chrome, Edge, Safari or Firefox.
+Files are still read locally in the browser and never uploaded.
+
+**Offline:** double-click `index.html` in a copy of this repo.
+
+Then drag in one or more `.drk` files. On Windows, RaceStudio2 stores downloads in `C:\AIM_SPORT\RaceStudio2\DATA`.
 
 ## Features
 

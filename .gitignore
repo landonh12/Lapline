@@ -1,0 +1,6 @@
+# Telemetry logs and exports (personal data; keep out of the repo)
+*.drk
+*.dat
+*.bak
+*.csv
+_test/

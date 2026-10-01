@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lapline</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23e8542f'/%3E%3Cpath d='M7 22c4-10 8 2 12-6s5-6 6-6' stroke='white' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--accent)"/><path d="M7 22c4-10 8 2 12-6s5-6 6-6" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+      <span>Lapline</span>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button data-tab="analysis" class="active">Analysis</button>
+      <button data-tab="laps">Laps</button>
+      <button data-tab="channels">Channels</button>
+    </nav>
+    <div class="spacer"></div>
+    <div class="seg" id="xmode" title="X axis">
+      <button data-v="dist" class="active">Distance</button><button data-v="time">Time</button>
+    </div>
+    <div class="seg" id="units" title="Units">
+      <button data-v="imperial">mph · °F</button><button data-v="metric">km/h · °C</button>
+    </div>
+    <button class="icon-btn" id="themeBtn" title="Toggle light/dark">◐</button>
+    <button class="btn primary" id="openBtn">Open .drk</button>
+    <input type="file" id="fileInput" accept=".drk" multiple hidden>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="side-empty" id="sideEmpty">No files loaded</div>
+      <div id="fileList"></div>
+    </aside>
+
+    <main class="main">
+      <section class="dropzone" id="dropzone">
+        <div class="dz-inner">
+          <svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true"><path d="M8 44c8-20 16 4 24-12s10-12 12-12 6 6 12 6" stroke="var(--accent)" stroke-width="4" fill="none" stroke-linecap="round"/><circle cx="44" cy="20" r="4" fill="var(--accent)"/></svg>
+          <h1>Drop your AiM <code>.drk</code> files here</h1>
+          <p>Solo, Solo DL and other RaceStudio2 GPS loggers. Files are read locally in your browser; nothing is uploaded.</p>
+          <button class="btn primary big" id="openBtn2">Choose files</button>
+          <p class="muted small">Tip: RaceStudio2 keeps downloads in <code>C:\AIM_SPORT\RaceStudio2\DATA</code></p>
+        </div>
+      </section>
+
+      <section class="view" id="view-analysis" hidden>
+        <div class="top-row">
+          <div class="card map-card">
+            <div class="card-h"><span>Track</span><span class="muted small" id="mapHint">colored by speed</span></div>
+            <div class="canvas-box"><canvas id="mapCanvas"></canvas></div>
+          </div>
+          <div class="card gg-card">
+            <div class="card-h"><span>G-G</span><span class="muted small">visible range</span></div>
+            <div class="canvas-box"><canvas id="ggCanvas"></canvas></div>
+          </div>
+          <div class="card readout-card">
+            <div class="card-h"><span>At cursor</span><span class="muted small mono" id="cursorPos"></span></div>
+            <div class="readout" id="readout"></div>
+          </div>
+        </div>
+        <div class="chart-toolbar">
+          <div class="legend" id="lapLegend"></div>
+          <div class="spacer"></div>
+          <span class="muted small hint">Drag to zoom · wheel to zoom · shift+wheel to pan · double-click to reset</span>
+          <button class="btn" id="resetZoom">Reset zoom</button>
+          <button class="btn" id="addPane">+ Chart</button>
+        </div>
+        <div class="panes" id="panes"></div>
+      </section>
+
+      <section class="view" id="view-laps" hidden>
+        <div id="lapsView"></div>
+      </section>
+
+      <section class="view" id="view-channels" hidden>
+        <div id="channelsView"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+  <div class="drag-overlay" id="dragOverlay" hidden><div>Drop .drk files to open</div></div>
+
+  <script src="js/drk.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -65,8 +65,10 @@ const DRK = (() => {
     const blocks = { PPX: [], IIX: [], MMX: [], GGX: [], RRX: [] };
     let o = 0x420;                      // fixed file header (RDX)
     while (o + 0x20 <= u8.length && u8[o + 3] === 2) {
-      const t = tag(o);
-      if (!(t in BODY)) break;
+      let t = tag(o);
+      // Some RaceStudio2 versions tag the info blocks "RDX"; they always come first, in this order.
+      if (!(t in BODY)) t = !blocks.PPX.length ? 'PPX' : !blocks.IIX.length ? 'IIX' : null;
+      if (!t) break;
       blocks[t].push(o + 0x20);
       o += 0x20 + BODY[t];
     }

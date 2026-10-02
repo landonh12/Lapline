@@ -25,6 +25,8 @@ Starting at 0x420, a run of blocks. Each block starts with a 4-byte tag (`XXX\x0
 | `GGX` | 0x100 | one per lap | lap record |
 | `RRX` | 0x1000 | one per session (run) | session record (not needed for decoding) |
 
+Some RaceStudio2 versions tag the `PPX` and `IIX` blocks as `RDX`, so identify those two by position (they always come first, in that order) rather than by tag.
+
 Sample data starts right after the last block.
 
 ### Channel descriptor (`MMX` body)

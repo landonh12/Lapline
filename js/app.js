@@ -448,7 +448,7 @@ const App = (() => {
       const d = DRK.lapData(file, l);
       let prev = 0;
       for (let k = 1; k <= nSeg; k++) {
-        const t = k === nSeg ? l.timeMs / 1000 : Charts.valueAt(d.dist, d.t, d.len * k / nSeg);
+        const t = k === nSeg ? d.t[d.n - 1] : Charts.valueAt(d.dist, d.t, d.len * k / nSeg);
         best[k - 1] = Math.min(best[k - 1], t - prev);
         prev = t;
       }
@@ -491,7 +491,7 @@ const App = (() => {
       }
       html += '</tbody></table></div>';
     }
-    html += `<p class="muted small">Click a lap to open it in Analysis; Ctrl/⌘-click to add it to the comparison. Lap times are the logger's own beacon timing.</p>
+    html += `<p class="muted small">Click a lap to open it in Analysis; Ctrl/⌘-click to add it to the comparison. Lap times are the logger's precise line-crossing times, the same ones RaceStudio2 shows.</p>
       <button class="btn" id="exportCsv">Export selected laps to CSV</button>`;
     el.innerHTML = html;
     el.querySelectorAll('tr.click').forEach(tr => tr.onclick = e => {

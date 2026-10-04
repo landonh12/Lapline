@@ -31,7 +31,7 @@ Then drag in one or more `.drk` files. On Windows, RaceStudio2 stores downloads 
 
 ## Notes and limits
 
-- Lap times are the logger's own beacon times. RaceStudio2 re-times laps from GPS, so its numbers can differ by a few hundredths.
+- Lap times are the logger's precise line-crossing times (lap block offset +0x76), so they match RaceStudio2 to the millisecond.
 - The map is dead-reckoned from GPS speed/heading (lat/long isn't stored in the `.drk`), so it shows the track's shape, not a satellite overlay.
 - Scaling for the BMW CAN channels, GPS channels, batteries and internal accelerometers was calibrated against RaceStudio2 CSV exports.
   Channels from other ECUs/sensors whose type id isn't known yet are shown raw. Add them to `converter()` in `js/drk.js`.

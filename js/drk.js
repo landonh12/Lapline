@@ -54,6 +54,25 @@ const DRK = (() => {
     return s.trim();
   }
 
+  // The coarse lap boundaries (+0x00 / +0x04) are where the logger noticed each line crossing;
+  // the precise lap times say where the crossings really were. Shift every crossing so timed laps
+  // span exactly their precise time. The shifts stay within a few tenths, so centre them on zero.
+  function alignCrossings(laps) {
+    if (laps.length < 2) return;
+    const shift = [0];                            // shift[j] applies to the crossing that ends laps[j]
+    for (let j = 1; j < laps.length - 1; j++) {
+      const l = laps[j];
+      shift.push(shift[j - 1] + (l.kind === 'lap' ? l.timeMs - l.spanMs : 0));
+    }
+    const mean = shift.reduce((a, b) => a + b, 0) / shift.length;
+    const ends = laps.map((l, j) => j < laps.length - 1 ? laps[j + 1].startMs + shift[j] - mean : l.startMs + l.spanMs);
+    for (let j = 0; j < laps.length; j++) {
+      const start = j ? ends[j - 1] : laps[0].startMs;
+      laps[j].startMs = start;
+      laps[j].spanMs = ends[j] - start;
+    }
+  }
+
   function parse(buffer, fileName = '') {
     const u8 = new Uint8Array(buffer), dv = new DataView(buffer);
     const tag = o => String.fromCharCode(u8[o], u8[o + 1], u8[o + 2]);
@@ -119,13 +138,16 @@ const DRK = (() => {
 
     let laps = blocks.GGX.map((b, i) => {
       const k = u8[b + 0x26];
+      const span = dv.getUint32(b + 4, true);         // logger's real-time detection, coarse
+      const precise = dv.getUint32(b + 0x76, true);   // interpolated line crossing; what RaceStudio2 shows
       return {
-        idx: i, startMs: dv.getUint32(b, true), timeMs: dv.getUint32(b + 4, true),
+        idx: i, startMs: dv.getUint32(b, true), spanMs: span,
+        timeMs: precise > 0 && Math.abs(precise - span) < Math.max(5000, span * 0.5) ? precise : span,
         lapNo: dv.getUint32(b + 0x10, true), session: u8[b + 0x53] || 1,
         kind: k === 0x08 ? 'out' : k === 0x02 ? 'in' : 'lap',
       };
-    }).filter(l => l.timeMs > 0);
-    if (!laps.length) laps = [{ idx: 0, startMs: 0, timeMs: durationMs, lapNo: 1, session: 1, kind: 'lap' }];
+    }).filter(l => l.spanMs > 0);
+    if (!laps.length) laps = [{ idx: 0, startMs: 0, spanMs: durationMs, timeMs: durationMs, lapNo: 1, session: 1, kind: 'lap' }];
 
     const sessions = [];
     for (const l of laps) {
@@ -134,8 +156,10 @@ const DRK = (() => {
       s.laps.push(l);
     }
     for (const s of sessions) {
+      alignCrossings(s.laps);
       const first = s.laps[0], last = s.laps[s.laps.length - 1];
-      s.whole = { idx: -s.no, startMs: first.startMs, timeMs: last.startMs + last.timeMs - first.startMs,
+      const span = last.startMs + last.spanMs - first.startMs;
+      s.whole = { idx: -s.no, startMs: first.startMs, spanMs: span, timeMs: span,
         lapNo: 0, session: s.no, kind: 'session' };
       const timed = s.laps.filter(l => l.kind === 'lap');
       s.best = timed.length ? timed.reduce((a, b) => (b.timeMs < a.timeMs ? b : a)) : null;
@@ -157,7 +181,7 @@ const DRK = (() => {
   function lapData(file, lap) {
     if (lap._d) return lap._d;
     const rate = file.masterRate, dt = 1 / rate;
-    const T = lap.timeMs / 1000;
+    const T = lap.spanMs / 1000;
     const n = Math.max(2, Math.ceil(T * rate - 1e-6) + 1);   // last sample lands exactly on the lap end
     const t0 = lap.startMs / 1000;
     const t = new Float32Array(n);

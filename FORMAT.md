@@ -45,10 +45,11 @@ Sample data starts right after the last block.
 | Offset | Type | Meaning |
 |---|---|---|
 | 0x00 | u32 | lap start, ms from start of log |
-| 0x04 | u32 | lap time, ms |
+| 0x04 | u32 | coarse lap time, ms (when the logger noticed the crossing; start + this = next lap's start) |
 | 0x10 | u32 | lap number within session |
 | 0x26 | u8 | 0x08 = out lap, 0x02 = in lap, 0x20 = timed lap |
 | 0x53 | u8 | session number |
+| 0x76 | u32 | precise lap time, ms (interpolated crossing; what RaceStudio2 displays; unaligned) |
 
 ## Sample data
 

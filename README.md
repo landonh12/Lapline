@@ -1,6 +1,6 @@
 # Lapline
 
-A fast, modern viewer for AiM `.drk` log files (Solo, Solo DL and other RaceStudio2 GPS loggers).
+A fast, modern viewer for AiM log files: RaceStudio2 `.drk` (Solo, Solo DL, ...) and RaceStudio3 `.xrk` (MXS, Solo 2 DL, ...).
 It runs entirely in your browser: no install, no server, and your data never leaves your machine.
 
 ## Run it
@@ -10,7 +10,7 @@ Files are still read locally in the browser and never uploaded.
 
 **Offline:** double-click `index.html` in a copy of this repo.
 
-Then drag in one or more `.drk` files. On Windows, RaceStudio2 stores downloads in `C:\AIM_SPORT\RaceStudio2\DATA`.
+Then drag in one or more `.drk` or `.xrk` files. On Windows, RaceStudio2 stores downloads in `C:\AIM_SPORT\RaceStudio2\DATA`.
 
 ## Features
 
@@ -25,14 +25,14 @@ Then drag in one or more `.drk` files. On Windows, RaceStudio2 stores downloads 
 - **Laps table** with lap and delta times, top speed, peak lateral and braking g, full-throttle %, max RPM, water and oil temps,
   plus a **theoretical best** built from the best of 12 equal-distance segments.
 - **Channels table** with rate, sample count, % valid, and min/mean/max, so a dead sensor is obvious at a glance.
-- Compare laps **across days**: open several files from the same track.
+- Compare laps **across days and drivers**: open several files from the same track, even a mix of `.drk` and `.xrk`.
 - Click a session header to view the **whole session** (handy for temps and battery).
 - Imperial/metric toggle, light/dark theme, and **CSV export** of the selected laps.
 
 ## Notes and limits
 
 - Lap times are the logger's precise line-crossing times (lap block offset +0x76), so they match RaceStudio2 to the millisecond.
-- The map is dead-reckoned from GPS speed/heading (lat/long isn't stored in the `.drk`), so it shows the track's shape, not a satellite overlay.
+- For `.drk` files the map is dead-reckoned from GPS speed/heading (lat/long isn't stored in the `.drk`); `.xrk` files carry real GPS positions.
 - Scaling for the BMW CAN channels, GPS channels, batteries and internal accelerometers was calibrated against RaceStudio2 CSV exports.
   Channels from other ECUs/sensors whose type id isn't known yet are shown raw. Add them to `converter()` in `js/drk.js`.
 - The pre-2006 `.drk` format (non-GPS loggers) isn't supported.

@@ -26,8 +26,8 @@
       <button data-v="imperial">mph · °F</button><button data-v="metric">km/h · °C</button>
     </div>
     <button class="icon-btn" id="themeBtn" title="Toggle light/dark">◐</button>
-    <button class="btn primary" id="openBtn">Open .drk</button>
-    <input type="file" id="fileInput" accept=".drk" multiple hidden>
+    <button class="btn primary" id="openBtn">Open file</button>
+    <input type="file" id="fileInput" accept=".drk,.xrk" multiple hidden>
   </header>
 
   <div class="layout">
@@ -40,8 +40,8 @@
       <section class="dropzone" id="dropzone">
         <div class="dz-inner">
           <svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true"><path d="M8 44c8-20 16 4 24-12s10-12 12-12 6 6 12 6" stroke="var(--accent)" stroke-width="4" fill="none" stroke-linecap="round"/><circle cx="44" cy="20" r="4" fill="var(--accent)"/></svg>
-          <h1>Drop your AiM <code>.drk</code> files here</h1>
-          <p>Solo, Solo DL and other RaceStudio2 GPS loggers. Files are read locally in your browser; nothing is uploaded.</p>
+          <h1>Drop your AiM <code>.drk</code> or <code>.xrk</code> files here</h1>
+          <p>RaceStudio2 (Solo, Solo DL) and RaceStudio3 (MXS, Solo 2 DL, …) logs. Files are read locally in your browser; nothing is uploaded.</p>
           <button class="btn primary big" id="openBtn2">Choose files</button>
           <p class="muted small">Tip: on Windows, RaceStudio2 keeps downloads in <code>C:\AIM_SPORT\RaceStudio2\DATA</code></p>
         </div>
@@ -83,9 +83,10 @@
   </div>
 
   <div class="toast" id="toast" hidden></div>
-  <div class="drag-overlay" id="dragOverlay" hidden><div>Drop .drk files to open</div></div>
+  <div class="drag-overlay" id="dragOverlay" hidden><div>Drop .drk / .xrk files to open</div></div>
 
   <script src="js/drk.js"></script>
+  <script src="js/xrk.js"></script>
   <script src="js/charts.js"></script>
   <script src="js/app.js"></script>
 </body>

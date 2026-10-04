@@ -53,13 +53,15 @@ const App = (() => {
   /* ---------- loading ---------- */
   async function openFiles(list) {
     for (const f of list) {
-      if (!/\.drk$/i.test(f.name)) { toast(`${f.name}: only .drk files are supported`); continue; }
+      if (!/\.(drk|xrk)$/i.test(f.name)) { toast(`${f.name}: only AiM .drk and .xrk files are supported`); continue; }
       try { loadBuffer(await f.arrayBuffer(), f.name); } catch (e) { toast(`${f.name}: ${e.message}`); console.error(e); }
     }
   }
 
   function loadBuffer(buf, name) {
-    const file = DRK.parse(buf, name);
+    // .xrk (RaceStudio3) starts with a "<h" message; .drk (RaceStudio2) with "RD"
+    const head = new Uint8Array(buf, 0, Math.min(2, buf.byteLength));
+    const file = head[0] === 0x3c && head[1] === 0x68 ? XRK.parse(buf, name) : DRK.parse(buf, name);
     if (S.files.some(f => f.fileName === name && f.durationMs === file.durationMs)) { toast(`${name} is already open`); return; }
     S.files.push(file);
     if (file.truncated) toast(`${name}: file looks truncated, some data is missing`);
@@ -126,7 +128,22 @@ const App = (() => {
     S.full = [0, hi || 1];
   }
 
-  function chFor(tr, name) { return tr.sel.file.byName.get(name); }
+  // Match a channel by name across files from different loggers/formats: exact name, then the same
+  // GPS-derived quantity (type id >= 3000), then a punctuation-insensitive name (RS2 truncates to 14 chars).
+  const normName = s => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  function findChannel(file, name) {
+    const exact = file.byName.get(name);
+    if (exact) return exact;
+    let tmpl = null;
+    for (const f of S.files) if ((tmpl = f.byName.get(name))) break;
+    if (tmpl && tmpl.typ >= 3000) { const c = file.channels.find(c => c.typ === tmpl.typ); if (c) return c; }
+    const k = normName(name);
+    return file.channels.find(c => {
+      const m = normName(c.name);
+      return m === k || (Math.min(m.length, k.length) >= 10 && (m.startsWith(k) || k.startsWith(m)));
+    }) || null;
+  }
+  function chFor(tr, name) { return findChannel(tr.sel.file, name); }
   function seriesFor(tr, name) {
     if (name === '__delta') return tr.delta;
     const ch = chFor(tr, name);
@@ -138,7 +155,7 @@ const App = (() => {
     return (tr.conv[key] = f ? raw.map(f) : raw);
   }
   const DELTA_CH = { name: '__delta', label: 'Time delta', unit: 's', decimals: 3 };
-  function chMeta(name) { if (name === '__delta') return DELTA_CH; return S.sel[0]?.file.byName.get(name); }
+  function chMeta(name) { if (name === '__delta') return DELTA_CH; return S.sel[0] ? findChannel(S.sel[0].file, name) : null; }
 
   /* ---------- rendering ---------- */
   let raf = 0;
@@ -401,7 +418,7 @@ const App = (() => {
         if (x != null) {
           if (ch === 0) { const v = Charts.valueAt(t.xs, t.d.t, x); txt = isNaN(v) ? '–' : v.toFixed(2); }
           else if (ch === 1) { const v = Charts.valueAt(t.xs, t.d.dist, x); txt = isNaN(v) ? '–' : (S.units === 'imperial' ? v * 3.28084 : v).toFixed(0); }
-          else { const c = t.sel.file.byName.get(ch.name); txt = c ? fmtVal(c, Charts.valueAt(t.xs, t.d.series(c), x)) : '–'; }
+          else { const c = findChannel(t.sel.file, ch.name); txt = c ? fmtVal(c, Charts.valueAt(t.xs, t.d.series(c), x)) : '–'; }
         }
         if (cells[k].textContent !== txt) cells[k].textContent = txt;
       });
@@ -537,7 +554,7 @@ const App = (() => {
     const blob = new Blob([lines.join('\r\n')], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = (S.sel[0]?.file.fileName || 'laps').replace(/\.drk$/i, '') + '_laps.csv';
+    a.download = (S.sel[0]?.file.fileName || 'laps').replace(/\.(drk|xrk)$/i, '') + '_laps.csv';
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }

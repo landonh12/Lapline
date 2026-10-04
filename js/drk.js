@@ -219,7 +219,19 @@ const DRK = (() => {
     const len = dist[n - 1];
 
     let x = null, y = null;
-    if (v && file.headingCh) {
+    const la = series(file.latCh), lo = series(file.lonCh);
+    if (la && lo) {
+      // Real GPS positions (.xrk). Like the dead-reckoned path, start each lap at (0, 0), x east / y north,
+      // so laps from .drk and .xrk files of the same track overlay.
+      let k0 = 0;
+      while (k0 < n - 1 && (isNaN(la[k0]) || isNaN(lo[k0]))) k0++;
+      const lat0 = la[k0], lon0 = lo[k0], kx = 111320 * Math.cos(lat0 * Math.PI / 180), ky = 110540;
+      x = new Float32Array(n); y = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        x[i] = isNaN(lo[i]) ? (i ? x[i - 1] : 0) : (lo[i] - lon0) * kx;
+        y[i] = isNaN(la[i]) ? (i ? y[i - 1] : 0) : (la[i] - lat0) * ky;
+      }
+    } else if (v && file.headingCh) {
       const h = series(file.headingCh, true);
       x = new Float32Array(n); y = new Float32Array(n);
       for (let i = 1; i < n; i++) {

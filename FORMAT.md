@@ -75,3 +75,32 @@ A channel's rate is `count / (duration_ms / 1000)` and sample *k* is at time *k 
 | 3007 | GPS gyro (yaw rate) | (raw − 15708) / 2500 rad/s |
 | class `04`, id < 1000 | internal accelerometers | ±(raw − zero@0x5C) / 440 g, sign from f32@0x60 |
 | others | switches, steering angle, etc. | raw |
+
+# AiM `.xrk` (RaceStudio3) layout
+
+A stream of tagged messages and sample records. All integers are little-endian; times are logger milliseconds.
+
+## Messages
+
+`"<h"` + 4-char tag + u32 payload length + u8 version + `">"`, the payload, then `"<"` + tag + u16 checksum + `">"`.
+`CNF` contains the configuration as nested messages.
+
+| Tag | Content |
+|---|---|
+| `CHS` (in `CNF`) | channel: u16 index (+0x00), unit code (+0x0C, low 7 bits), value format (+0x14), short name (+0x18, 8), long name (+0x20, 32), sample period in µs (+0x40), sample size in bytes (+0x48) |
+| `GRP` (in `CNF`) | u16 group id, u16 count, count × u16 channel indexes |
+| `LAP` | u16, u16 lap number, u32 lap time ms, u32, u8, u8 flag (1 = out, 2 = timed, 3 = in), u16, u32 lap end time |
+| `GPS` | u32 logger time + u-blox NAV-SOL from iTOW (iTOW, fTOW, week, fix, flags, ECEF X/Y/Z cm, pAcc, ECEF VX/VY/VZ cm/s, sAcc, pDOP, -, numSV, -) |
+| `RCR` / `VEH` / `TRK` / `TMD` / `TMT` | driver, vehicle, track, date (mm/dd/yyyy), time |
+
+## Sample records
+
+| Record | Layout |
+|---|---|
+| `(S` | u32 time, u16 channel, one sample, `)` |
+| `(M` | u32 time, u16 channel, u16 count, count samples spaced by the channel period, `)` |
+| `(G` | u32 time, u16 group id, one sample of each channel in the group, `)` |
+
+2-byte samples are IEEE half floats; 4-byte samples are float32 (format 3 = int32). Batteries are logged in mV.
+
+Unit codes: 1 %, 3 g, 4 deg, 5 deg/s, 8 m, 11 raw, 14 bar, 15 rpm, 16 km/h, 17 °C, 18 ms, 19 Nm, 21 V, 22 l, 31 gear.

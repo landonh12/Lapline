@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lapline</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23e8542f'/%3E%3Cpath d='M7 22c4-10 8 2 12-6s5-6 6-6' stroke='white' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
@@ -15,6 +16,7 @@
     </div>
     <nav class="tabs" id="tabs">
       <button data-tab="analysis" class="active">Analysis</button>
+      <button data-tab="map">Map</button>
       <button data-tab="laps">Laps</button>
       <button data-tab="channels">Channels</button>
     </nav>
@@ -27,7 +29,7 @@
     </div>
     <button class="icon-btn" id="themeBtn" title="Toggle light/dark">◐</button>
     <button class="btn primary" id="openBtn">Open file</button>
-    <input type="file" id="fileInput" accept=".drk,.xrk" multiple hidden>
+    <input type="file" id="fileInput" accept=".drk,.xrk,.gpk" multiple hidden>
   </header>
 
   <div class="layout">
@@ -72,6 +74,20 @@
         <div class="panes" id="panes"></div>
       </section>
 
+      <section class="view" id="view-map" hidden>
+        <div class="card sat-card">
+          <div id="satMap"></div>
+          <div class="sat-note" id="satNote" hidden></div>
+        </div>
+        <div class="chart-toolbar">
+          <div class="legend" id="mapLegend"></div>
+          <div class="spacer"></div>
+          <span class="muted small hint">Hover the map or a chart to scrub · drag on a chart to zoom the map to that section</span>
+          <button class="btn" id="resetZoom2">Reset zoom</button>
+        </div>
+        <div class="panes" id="mapPanes"></div>
+      </section>
+
       <section class="view" id="view-laps" hidden>
         <div id="lapsView"></div>
       </section>
@@ -85,6 +101,7 @@
   <div class="toast" id="toast" hidden></div>
   <div class="drag-overlay" id="dragOverlay" hidden><div>Drop .drk / .xrk files to open</div></div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script src="js/drk.js"></script>
   <script src="js/xrk.js"></script>
   <script src="js/charts.js"></script>

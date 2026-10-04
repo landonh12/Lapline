@@ -250,5 +250,72 @@ const DRK = (() => {
     return (lap._d = { n, t, dt, dist, len, x, y, series });
   }
 
-  return { parse, lapData };
+  // Resample irregular (t ms, value) points onto a uniform grid starting at t0, so sample k is at t0 + k / rate.
+  // Gaps longer than a few samples become NaN rather than being bridged.
+  function resample(t, v, t0, durationMs, rateHz) {
+    const rate = Math.min(50, Math.max(1, rateHz));
+    const count = Math.floor(durationMs / 1000 * rate) + 1;
+    const data = new Float32Array(count).fill(NaN);
+    const maxGap = Math.max(3000 / rate, 500);
+    let j = 0, valid = 0;
+    for (let k = 0; k < count && t.length; k++) {
+      const tm = t0 + k * 1000 / rate;
+      while (j < t.length - 1 && t[j + 1] <= tm) j++;
+      if (tm < t[0] - maxGap || tm > t[t.length - 1] + maxGap) continue;
+      let val;
+      if (tm <= t[0]) val = v[0];
+      else if (j >= t.length - 1) val = v[t.length - 1];
+      else if (t[j + 1] - t[j] > maxGap) continue;
+      else val = v[j] + (v[j + 1] - v[j]) * (tm - t[j]) / (t[j + 1] - t[j] || 1);
+      if (isFinite(val)) { data[k] = val; valid++; }
+    }
+    return { data, rate, count, valid };
+  }
+
+  /*
+   * RaceStudio2 .gpk (saved next to each .drk): "PROV" header with the ECEF reference point (3 doubles at 0x1E),
+   * then 144-byte "PSOL" records from 0x60: u32 time on the .drk timeline (ms), u16 GPS week, u32 iTOW, u8 fix,
+   * u8 flags, then doubles: east, north, up (m from the reference), ?, v east, v north, ...
+   */
+  function parseGpk(buffer) {
+    const u8 = new Uint8Array(buffer), dv = new DataView(buffer);
+    const isTag = (o, s) => o + 4 <= u8.length && String.fromCharCode(u8[o], u8[o + 1], u8[o + 2], u8[o + 3]) === s;
+    if (!isTag(0, 'PROV') || !isTag(0x10, 'PROV')) throw new Error('This is not a RaceStudio2 .gpk file.');
+    const X = dv.getFloat64(0x1e, true), Y = dv.getFloat64(0x26, true), Z = dv.getFloat64(0x2e, true);
+    const a = 6378137, f = 1 / 298.257223563, e2 = f * (2 - f), b = a * (1 - f), ep2 = (a * a - b * b) / (b * b);
+    const p = Math.hypot(X, Y), th = Math.atan2(Z * a, p * b);
+    const lat0 = Math.atan2(Z + ep2 * b * Math.sin(th) ** 3, p - e2 * a * Math.cos(th) ** 3), lon0 = Math.atan2(Y, X);
+    const N = a / Math.sqrt(1 - e2 * Math.sin(lat0) ** 2);           // prime vertical radius
+    const M = a * (1 - e2) / (1 - e2 * Math.sin(lat0) ** 2) ** 1.5;  // meridian radius
+    const t = [], lat = [], lon = [];
+    for (let o = 0x60; o + 0x90 <= u8.length && isTag(o, 'PSOL'); o += 0x90) {
+      if (u8[o + 14] < 2) continue;                                  // no 2D/3D fix
+      const e = dv.getFloat64(o + 0x10, true), n = dv.getFloat64(o + 0x18, true);
+      if (!isFinite(e) || !isFinite(n) || (e === 0 && n === 0)) continue;
+      t.push(dv.getUint32(o + 4, true));
+      lat.push((lat0 + n / M) * 180 / Math.PI);
+      lon.push((lon0 + e / (N * Math.cos(lat0))) * 180 / Math.PI);
+    }
+    if (t.length < 2) throw new Error('No GPS positions were found in this .gpk file.');
+    return { t, lat, lon };
+  }
+
+  // Give a .drk real GPS positions from its .gpk; maps then use them instead of dead reckoning.
+  function attachGps(file, gpk) {
+    const rate = 1000 / Math.max(20, (gpk.t[gpk.t.length - 1] - gpk.t[0]) / (gpk.t.length - 1));
+    for (const [name, vals, typ] of [['GPS Latitude', gpk.lat, 3010], ['GPS Longitude', gpk.lon, 3011]]) {
+      const r = resample(gpk.t, vals, 0, file.durationMs, rate);
+      const ch = { id: file.channels.length, name, label: name, code: 'gpk', unit: 'deg', decimals: 6, typ,
+        count: r.count, rate: r.rate, data: r.data, valid: r.valid, lo: 0, hi: 0 };
+      file.channels = file.channels.filter(c => c.name !== name).concat(ch);
+    }
+    file.channels.forEach((c, i) => (c.id = i));
+    file.byName = new Map(file.channels.map(c => [c.name, c]));
+    file.latCh = file.byName.get('GPS Latitude');
+    file.lonCh = file.byName.get('GPS Longitude');
+    file.hasGpk = true;
+    for (const l of [...file.laps, ...file.sessions.map(s => s.whole)]) { delete l._d; delete l._stats; }
+  }
+
+  return { parse, lapData, resample, parseGpk, attachGps };
 })();

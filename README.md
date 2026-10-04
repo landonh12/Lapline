@@ -10,7 +10,7 @@ Files are still read locally in the browser and never uploaded.
 
 **Offline:** double-click `index.html` in a copy of this repo.
 
-Then drag in one or more `.drk` or `.xrk` files. On Windows, RaceStudio2 stores downloads in `C:\AIM_SPORT\RaceStudio2\DATA`.
+Then drag in one or more `.drk` or `.xrk` files. For `.drk` logs, also drop in the `.gpk` file with the same name (RaceStudio2 saves it next to the `.drk`) to get real GPS positions. On Windows, RaceStudio2 stores downloads in `C:\AIM_SPORT\RaceStudio2\DATA`.
 
 ## Features
 
@@ -20,6 +20,7 @@ Then drag in one or more `.drk` or `.xrk` files. On Windows, RaceStudio2 stores 
   Each channel gets its own y scale. Drag to zoom, wheel to zoom, shift+wheel to pan, double-click to reset;
   arrow keys nudge the cursor.
 - **Time delta** vs a reference lap (first selected; right-click a compared lap to make it the reference).
+- **Map tab**: every compared lap's racing line on satellite imagery, with cursor dots synced to a speed and time-delta chart. Drag on the chart to zoom the map into a corner; hover the map to scrub.
 - **G-G diagram** for the visible range.
 - **Cursor readout** of every channel for every compared lap.
 - **Laps table** with lap and delta times, top speed, peak lateral and braking g, full-throttle %, max RPM, water and oil temps,
@@ -32,7 +33,8 @@ Then drag in one or more `.drk` or `.xrk` files. On Windows, RaceStudio2 stores 
 ## Notes and limits
 
 - Lap times are the logger's precise line-crossing times (lap block offset +0x76), so they match RaceStudio2 to the millisecond.
-- For `.drk` files the map is dead-reckoned from GPS speed/heading (lat/long isn't stored in the `.drk`); `.xrk` files carry real GPS positions.
+- A `.drk` doesn't store latitude/longitude; Lapline reads them from the matching `.gpk`. Without it, the Track card falls back to a shape dead-reckoned from GPS speed/heading and the Map tab can't place that lap.
+- The Map tab loads satellite tiles from Esri, so it needs an internet connection and Esri sees which area you're viewing. Your log data still stays in the browser.
 - Scaling for the BMW CAN channels, GPS channels, batteries and internal accelerometers was calibrated against RaceStudio2 CSV exports.
   Channels from other ECUs/sensors whose type id isn't known yet are shown raw. Add them to `converter()` in `js/drk.js`.
 - The pre-2006 `.drk` format (non-GPS loggers) isn't supported.

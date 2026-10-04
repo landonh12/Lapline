@@ -133,22 +133,7 @@ const XRK = (() => {
           break;
         }
       }
-      const rate = Math.min(50, Math.max(1, rateHz));
-      const count = Math.floor(durationMs / 1000 * rate) + 1;
-      const data = new Float32Array(count).fill(NaN);
-      const maxGap = Math.max(3000 / rate, 500);
-      let j = 0, valid = 0;
-      for (let k = 0; k < count; k++) {
-        const tm = t0 + k * 1000 / rate;
-        while (j < t.length - 1 && t[j + 1] <= tm) j++;
-        if (!t.length || tm < t[0] - maxGap || tm > t[t.length - 1] + maxGap) continue;
-        let val;
-        if (tm <= t[0]) val = v[0];
-        else if (j >= t.length - 1) val = v[t.length - 1];
-        else if (t[j + 1] - t[j] > maxGap) continue;
-        else { const w = (tm - t[j]) / (t[j + 1] - t[j] || 1); val = v[j] + (v[j + 1] - v[j]) * w; }
-        if (isFinite(val)) { data[k] = val; valid++; }
-      }
+      const { data, rate, count, valid } = DRK.resample(t, v, t0, durationMs, rateHz);
       channels.push({
         id: channels.length, name, label: name, code: extra.code || '', unit, decimals, typ: extra.typ || 0,
         count, rate, data, valid, lo: 0, hi: 0,

@@ -51,18 +51,34 @@ const App = (() => {
   function shortDate(f) { return f.date ? f.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : f.fileName; }
 
   /* ---------- loading ---------- */
+  const baseName = n => n.replace(/\.[^.]+$/, '').toLowerCase();
+  const pendingGpk = new Map();   // .gpk opened before its .drk, keyed by base name
+
   async function openFiles(list) {
-    for (const f of list) {
-      if (!/\.(drk|xrk)$/i.test(f.name)) { toast(`${f.name}: only AiM .drk and .xrk files are supported`); continue; }
+    // logs first, so a .gpk dropped together with its .drk finds it
+    const files = [...list].sort((a, b) => /\.gpk$/i.test(a.name) - /\.gpk$/i.test(b.name));
+    for (const f of files) {
+      if (!/\.(drk|xrk|gpk)$/i.test(f.name)) { toast(`${f.name}: only AiM .drk, .xrk and .gpk files are supported`); continue; }
       try { loadBuffer(await f.arrayBuffer(), f.name); } catch (e) { toast(`${f.name}: ${e.message}`); console.error(e); }
     }
   }
 
+  function loadGpk(buf, name) {
+    const gpk = DRK.parseGpk(buf);
+    const file = S.files.find(f => f.format !== 'xrk' && baseName(f.fileName) === baseName(name));
+    if (!file) { pendingGpk.set(baseName(name), gpk); toast(`${name}: GPS track loaded; open the matching .drk to use it`, 'info'); return; }
+    DRK.attachGps(file, gpk);
+    renderAll();
+  }
+
   function loadBuffer(buf, name) {
+    if (/\.gpk$/i.test(name)) return loadGpk(buf, name);
     // .xrk (RaceStudio3) starts with a "<h" message; .drk (RaceStudio2) with "RD"
     const head = new Uint8Array(buf, 0, Math.min(2, buf.byteLength));
     const file = head[0] === 0x3c && head[1] === 0x68 ? XRK.parse(buf, name) : DRK.parse(buf, name);
     if (S.files.some(f => f.fileName === name && f.durationMs === file.durationMs)) { toast(`${name} is already open`); return; }
+    const gpk = pendingGpk.get(baseName(name));
+    if (gpk && file.format !== 'xrk') { DRK.attachGps(file, gpk); pendingGpk.delete(baseName(name)); }
     S.files.push(file);
     if (file.truncated) toast(`${name}: file looks truncated, some data is missing`);
     const best = file.best || file.laps[0];
@@ -165,14 +181,21 @@ const App = (() => {
     const has = S.files.length > 0;
     $('#dropzone').hidden = has;
     $('#sideEmpty').hidden = has;
-    for (const t of ['analysis', 'laps', 'channels']) $('#view-' + t).hidden = !has || S.tab !== t;
+    for (const t of ['analysis', 'map', 'laps', 'channels']) $('#view-' + t).hidden = !has || S.tab !== t;
     document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === S.tab));
     document.querySelectorAll('#xmode button').forEach(b => b.classList.toggle('active', b.dataset.v === S.xMode));
     document.querySelectorAll('#units button').forEach(b => b.classList.toggle('active', b.dataset.v === S.units));
     renderSidebar();
     if (!has) return;
     buildTraces();
-    if (S.tab === 'analysis') { renderLegend(); renderPanes(); buildReadout(); schedule(); }
+    if (S.tab === 'analysis') { renderLegend($('#lapLegend')); renderPanes($('#panes'), S.panes); buildReadout(); schedule(); }
+    if (S.tab === 'map') {
+      renderLegend($('#mapLegend'));
+      const spd = S.sel[0]?.file.speedCh;
+      renderPanes($('#mapPanes'), [...(spd ? [{ chs: [spd.name] }] : []), { chs: ['__delta'], short: true }], false);
+      renderSat();
+      schedule();
+    }
     if (S.tab === 'laps') renderLaps();
     if (S.tab === 'channels') renderChannels();
   }
@@ -187,6 +210,7 @@ const App = (() => {
       card.innerHTML = `<div class="file-head"><div class="track">${esc(f.meta.track || 'Unknown track')}</div>
         <div class="sub">${esc(f.meta.vehicle)}${f.meta.driver ? ' · ' + esc(f.meta.driver) : ''}</div>
         <div class="sub">${esc(date)}${f.best ? ` · best <b class="mono">${lapTime(f.best.timeMs)}</b>` : ''}</div>
+        ${f.latCh ? '' : '<div class="sub" title="Open the .gpk with the same name from RaceStudio2\'s DATA folder for real GPS positions">No GPS track · add its .gpk</div>'}
         <button class="icon-btn close" title="Close file">×</button></div>`;
       card.querySelector('.close').onclick = () => closeFile(fi);
       for (const s of f.sessions) {
@@ -227,19 +251,18 @@ const App = (() => {
     renderAll();
   }
 
-  function renderLegend() {
-    $('#lapLegend').innerHTML = S.sel.map((s, i) =>
+  function renderLegend(el) {
+    el.innerHTML = S.sel.map((s, i) =>
       `<span class="item"><span class="dot" style="background:${s.color}"></span>${esc(lapName(s))} <span class="muted mono">${lapTime(s.lap.timeMs)}</span>${i === 0 && S.sel.length > 1 ? '<span class="tag ref">REF</span>' : ''}</span>`).join('');
   }
 
   /* ---------- chart panes ---------- */
   const paneEls = [];
-  function renderPanes() {
-    const host = $('#panes');
+  function renderPanes(host, panes, editable = true) {
     host.innerHTML = '';
     paneEls.length = 0;
     const ref = S.sel[0]?.file;
-    S.panes.forEach((p, pi) => {
+    panes.forEach((p, pi) => {
       const el = document.createElement('div');
       el.className = 'pane' + (p.short ? ' short' : '');
       const head = document.createElement('div');
@@ -249,11 +272,12 @@ const App = (() => {
         const chip = document.createElement('span');
         chip.className = 'chip';
         chip.innerHTML = `<span class="key" style="border-color:${S.sel.length > 1 ? 'var(--muted)' : CH_COLORS[ci % CH_COLORS.length]};border-top-style:${ci ? 'dashed' : 'solid'}"></span>
-          <span>${esc(m ? m.label : name)}</span><span class="vals"></span><button title="Remove channel">×</button>`;
-        chip.querySelector('button').onclick = () => { p.chs.splice(ci, 1); if (!p.chs.length) S.panes.splice(pi, 1); savePanes(); renderAll(); };
+          <span>${esc(m ? m.label : name)}</span><span class="vals"></span>${editable ? '<button title="Remove channel">×</button>' : ''}`;
+        if (editable) chip.querySelector('button').onclick = () => { p.chs.splice(ci, 1); if (!p.chs.length) S.panes.splice(pi, 1); savePanes(); renderAll(); };
         head.appendChild(chip);
         return chip.querySelector('.vals');
       });
+      if (editable) {
       const add = document.createElement('select');
       add.innerHTML = `<option value="">+ channel</option><option value="__delta">Time delta</option>` +
         (ref ? ref.channels.filter(c => c.valid).map(c => `<option value="${esc(c.name)}">${esc(c.label)} (${esc(unitOf(c))})</option>`).join('') : '');
@@ -263,6 +287,7 @@ const App = (() => {
       x.className = 'icon-btn pane-x'; x.title = 'Remove chart'; x.textContent = '×';
       x.onclick = () => { S.panes.splice(pi, 1); savePanes(); renderAll(); };
       head.appendChild(x);
+      }
       const cv = document.createElement('canvas');
       el.append(head, cv);
       host.appendChild(el);
@@ -426,10 +451,91 @@ const App = (() => {
   }
 
   function drawAll() {
-    if (!S.files.length || S.tab !== 'analysis') return;
-    drawPanes();
-    drawMapGG();
-    updateReadout();
+    if (!S.files.length) return;
+    if (S.tab === 'analysis') { drawPanes(); drawMapGG(); updateReadout(); }
+    if (S.tab === 'map') { drawPanes(); updateSat(); }
+  }
+
+  /* ---------- satellite map tab ---------- */
+  let sat = null;   // { map, layers, dots, selKey, viewKey }
+  function ensureSat() {
+    if (sat || typeof L === 'undefined') return sat;
+    const map = L.map('satMap', { zoomSnap: 0.25, preferCanvas: true });
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxNativeZoom: 19, maxZoom: 21,
+      attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+    }).addTo(map);
+    map.on('mousemove', e => {
+      // scrub: snap to the nearest point of the reference lap's line
+      const tr = S.traces[0];
+      if (!tr || !tr.lat) return;
+      let best = -1, bd = 900;
+      for (let i = 0; i < tr.lat.length; i++) {
+        if (isNaN(tr.lat[i])) continue;
+        const p = map.latLngToContainerPoint([tr.lat[i], tr.lon[i]]);
+        const dd = (p.x - e.containerPoint.x) ** 2 + (p.y - e.containerPoint.y) ** 2;
+        if (dd < bd) { bd = dd; best = i; }
+      }
+      if (best >= 0) { S.cursor = tr.xs[best]; schedule(); }
+    });
+    sat = { map, layers: L.layerGroup().addTo(map), dots: [], selKey: '', viewKey: '' };
+    new ResizeObserver(() => map.invalidateSize()).observe($('#satMap'));
+    return sat;
+  }
+
+  function renderSat() {
+    const note = $('#satNote');
+    if (typeof L === 'undefined') {
+      note.hidden = false;
+      note.textContent = 'The satellite map needs an internet connection to load (the map library could not be fetched).';
+      return;
+    }
+    const s = ensureSat();
+    s.map.invalidateSize();
+    s.layers.clearLayers();
+    s.dots = [];
+    const missing = [];
+    for (const tr of S.traces) {
+      const f = tr.sel.file;
+      tr.lat = tr.lon = null;
+      if (!f.latCh) { if (!missing.includes(f)) missing.push(f); continue; }
+      tr.lat = tr.d.series(f.latCh); tr.lon = tr.d.series(f.lonCh);
+      const pts = [];
+      for (let i = 0; i < tr.lat.length; i++) if (!isNaN(tr.lat[i]) && !isNaN(tr.lon[i])) pts.push([tr.lat[i], tr.lon[i]]);
+      L.polyline(pts, { color: tr.sel.color, weight: 3, opacity: 0.95, interactive: false }).addTo(s.layers);
+      s.dots.push({ tr, m: L.circleMarker([0, 0], { radius: 6, color: '#fff', weight: 2, fillColor: tr.sel.color, fillOpacity: 1, interactive: false }) });
+    }
+    note.hidden = !missing.length;
+    if (missing.length) {
+      note.innerHTML = `No GPS positions for ${missing.map(f => `<b>${esc(f.fileName)}</b>`).join(', ')}. ` +
+        `Open the matching <code>.gpk</code> file too (same name, next to the .drk in RaceStudio2's DATA folder) to show ${missing.length > 1 ? 'them' : 'it'} here.`;
+    }
+    const key = S.sel.map(x => x.file.fileName + '#' + x.lap.idx).join('|');
+    if (key !== s.selKey) { s.selKey = key; s.viewKey = ''; }
+  }
+
+  function fitSat(view) {
+    let b = null;
+    for (const tr of S.traces) {
+      if (!tr.lat) continue;
+      for (let i = 0; i < tr.lat.length; i++) {
+        if (isNaN(tr.lat[i]) || (view && (tr.xs[i] < view[0] || tr.xs[i] > view[1]))) continue;
+        const ll = L.latLng(tr.lat[i], tr.lon[i]);
+        b ? b.extend(ll) : (b = L.latLngBounds(ll, ll));
+      }
+    }
+    if (b) sat.map.fitBounds(b, { padding: [30, 30], maxZoom: 20, animate: false });
+  }
+
+  function updateSat() {
+    if (!sat) return;
+    const vkey = S.view ? S.view.join() : 'full';
+    if (vkey !== sat.viewKey) { sat.viewKey = vkey; fitSat(S.view); }   // zooming a chart zooms the map to that section
+    for (const { tr, m } of sat.dots) {
+      const a = S.cursor == null ? NaN : Charts.valueAt(tr.xs, tr.lat, S.cursor);
+      const b = S.cursor == null ? NaN : Charts.valueAt(tr.xs, tr.lon, S.cursor);
+      if (isNaN(a) || isNaN(b)) m.remove(); else m.setLatLng([a, b]).addTo(sat.layers);
+    }
   }
 
   /* ---------- laps tab ---------- */
@@ -563,8 +669,8 @@ const App = (() => {
   /* ---------- misc ---------- */
   function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   let toastTimer = 0;
-  function toast(msg) {
-    const t = $('#toast'); t.textContent = msg; t.hidden = false;
+  function toast(msg, kind) {
+    const t = $('#toast'); t.textContent = msg; t.hidden = false; t.classList.toggle('info', kind === 'info');
     clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 6000);
   }
 
@@ -585,7 +691,7 @@ const App = (() => {
     document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; renderAll(); });
     document.querySelectorAll('#xmode button').forEach(b => b.onclick = () => { S.xMode = b.dataset.v; store.set('xMode', S.xMode); S.view = null; S.cursor = null; renderAll(); });
     document.querySelectorAll('#units button').forEach(b => b.onclick = () => { S.units = b.dataset.v; store.set('units', S.units); renderAll(); });
-    $('#resetZoom').onclick = () => { S.view = null; schedule(); };
+    $('#resetZoom').onclick = $('#resetZoom2').onclick = () => { S.view = null; schedule(); };
     $('#addPane').onclick = () => { const f = S.sel[0]?.file; S.panes.push({ chs: [f?.speedCh?.name || f?.channels[0].name] }); savePanes(); renderAll(); };
 
     let depth = 0;
@@ -605,6 +711,7 @@ const App = (() => {
     ro.observe($('.main'));
     document.querySelectorAll('.canvas-box').forEach(el => ro.observe(el));
     ro.observe($('#panes'));
+    ro.observe($('#mapPanes'));
     window.addEventListener('keydown', e => {
       if (e.target.tagName === 'SELECT' || S.cursor == null || !S.traces[0]) return;
       const step = (S.xMode === 'time' ? 0.1 : 5) * (e.shiftKey ? 10 : 1);

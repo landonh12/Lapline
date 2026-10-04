@@ -76,6 +76,17 @@ A channel's rate is `count / (duration_ms / 1000)` and sample *k* is at time *k 
 | class `04`, id < 1000 | internal accelerometers | ±(raw − zero@0x5C) / 440 g, sign from f32@0x60 |
 | others | switches, steering angle, etc. | raw |
 
+## `.gpk` (GPS positions, saved by RaceStudio2 next to each `.drk`)
+
+| Offset | Type | Meaning |
+|---|---|---|
+| 0x00, 0x10 | `PROV` | headers |
+| 0x1E | 3 × f64 | ECEF X, Y, Z (m) of the local reference point |
+| 0x50 | `PSOL` | header; records start at 0x60, 144 bytes each |
+
+`PSOL` record: `PSOL`, u32 time on the `.drk` timeline (ms; sessions back to back like the `.drk`), u16 GPS week, u32 iTOW,
+u8 fix, u8 flags, then f64 east, north, up (m from the reference point), f64 ?, f64 velocity east, north, ... Records are 8 Hz.
+
 # AiM `.xrk` (RaceStudio3) layout
 
 A stream of tagged messages and sample records. All integers are little-endian; times are logger milliseconds.

@@ -146,10 +146,9 @@ const XRK = (() => {
       let [unit, dec] = UNITS[c.unit] || ['', 2];
       let v = s ? s.v : [];
       if (unit === 'V' && v.length && v.reduce((a, b) => a + b, 0) / v.length > 100) v = v.map(x => x / 1000);  // logged in mV
-      let typ = 0;
-      if (c.short === 'LatA') typ = 3003;
-      if (c.short === 'InlA') typ = 3004;
-      addChannel(c.name, unit, dec, 1e6 / (c.period || 100000), s ? s.t : [], v, { code: `${c.short} / u${c.unit}`, typ });
+      // Internal accelerometer axes follow however the logger is mounted (often yawed in the car), so the
+      // G-G uses GPS-derived accelerations instead, like RaceStudio2's GPS_LatAcc/GPS_LonAcc.
+      addChannel(c.name, unit, dec, 1e6 / (c.period || 100000), s ? s.t : [], v, { code: `${c.short} / u${c.unit}` });
     }
 
     // GPS: u32 logger time + u-blox NAV-SOL (iTOW, fTOW, week, fix, flags, ECEF pos/vel cm, accuracies, numSV)
@@ -180,6 +179,22 @@ const XRK = (() => {
         addChannel('GPS Heading', 'deg', 1, rate, T, unwrapped, { typ: 3006, code: 'GPS' });
         const hc = channels[channels.length - 1];
         for (let k = 0; k < hc.data.length; k++) if (!isNaN(hc.data[k])) hc.data[k] = (((hc.data[k] + 180) % 360) + 360) % 360 - 180;
+        // Accelerations from GPS velocity: longitudinal = dv/dt (+ accelerating), lateral = v·dψ/dt (+ turning right).
+        const latG = [], lonG = [];
+        for (let k = 0; k < T.length; k++) {
+          const a = Math.max(0, k - 1), b = Math.min(T.length - 1, k + 1), dt = (T[b] - T[a]) / 1000;
+          if (dt <= 0 || dt > 0.5) { latG.push(NaN); lonG.push(NaN); continue; }
+          const v = spd[k] / 3.6;
+          lonG.push((spd[b] - spd[a]) / 3.6 / dt / 9.81);
+          latG.push(v * (unwrapped[b] - unwrapped[a]) * Math.PI / 180 / dt / 9.81);
+        }
+        const smooth = arr => arr.map((_, k) => {   // 5-point moving average, ignoring gaps
+          let s = 0, c = 0;
+          for (let q = Math.max(0, k - 2); q <= Math.min(arr.length - 1, k + 2); q++) if (!isNaN(arr[q])) { s += arr[q]; c++; }
+          return c ? s / c : NaN;
+        });
+        addChannel('GPS LatAcc', 'g', 2, rate, T, smooth(latG), { typ: 3003, code: 'GPS' });
+        addChannel('GPS LonAcc', 'g', 2, rate, T, smooth(lonG), { typ: 3004, code: 'GPS' });
         addChannel('GPS Latitude', 'deg', 6, rate, T, lat, { typ: 3010, code: 'GPS' });
         addChannel('GPS Longitude', 'deg', 6, rate, T, lon, { typ: 3011, code: 'GPS' });
         addChannel('GPS Altitude', 'm', 0, rate, T, alt, { code: 'GPS' });

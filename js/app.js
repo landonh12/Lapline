@@ -204,16 +204,49 @@ const App = (() => {
   function renderSidebar() {
     const el = $('#fileList');
     el.innerHTML = '';
+    if (S.files.length > 1) {
+      const allCollapsed = S.files.every(f => f.collapsed);
+      const bar = document.createElement('div');
+      bar.className = 'side-bar';
+      bar.innerHTML = `<span>${S.files.length} files</span><button class="link-btn">${allCollapsed ? 'Expand all' : 'Collapse all'}</button>`;
+      bar.querySelector('button').onclick = () => { S.files.forEach(f => { f.collapsed = !allCollapsed; }); renderSidebar(); };
+      el.appendChild(bar);
+    }
     S.files.forEach((f, fi) => {
       const card = document.createElement('div');
-      card.className = 'file-card';
+      card.className = 'file-card' + (f.collapsed ? ' collapsed' : '');
       const date = f.date ? f.date.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : '';
-      card.innerHTML = `<div class="file-head"><div class="track">${esc(f.meta.track || 'Unknown track')}</div>
+      card.innerHTML = `<div class="file-head" role="button" tabindex="0" aria-expanded="${!f.collapsed}" title="${f.collapsed ? 'Show' : 'Hide'} laps">
+        <div class="track"><span class="chev" aria-hidden="true"></span>${esc(f.meta.track || 'Unknown track')}</div>
         <div class="sub">${esc(f.meta.vehicle)}${f.meta.driver ? ' · ' + esc(f.meta.driver) : ''}</div>
         <div class="sub">${esc(date)}${f.best ? ` · best <b class="mono">${lapTime(f.best.timeMs)}</b>` : ''}</div>
         ${f.latCh || f.format !== 'drk' ? '' : '<div class="sub" title="Open the .gpk with the same name from RaceStudio2\'s DATA folder for real GPS positions">No GPS track · add its .gpk</div>'}
         <button class="icon-btn close" title="Close file">×</button></div>`;
-      card.querySelector('.close').onclick = () => closeFile(fi);
+      card.querySelector('.close').onclick = e => { e.stopPropagation(); closeFile(fi); };
+      const head = card.querySelector('.file-head');
+      const toggle = () => { f.collapsed = !f.collapsed; renderSidebar(); };
+      head.onclick = toggle;
+      head.onkeydown = e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === head) { e.preventDefault(); toggle(); } };
+      if (f.collapsed) {
+        // Keep this file's selections visible (and clickable) while its lap list is hidden.
+        const picked = S.sel.map((s, si) => ({ s, si })).filter(({ s }) => s.file === f);
+        if (picked.length) {
+          const chips = document.createElement('div');
+          chips.className = 'sel-chips';
+          for (const { s, si } of picked) {
+            const c = document.createElement('span');
+            c.className = 'chip';
+            c.title = 'Click to view · Ctrl/⌘-click to remove from the comparison';
+            c.innerHTML = `<span class="dot" style="background:${s.color}"></span>${s.lap.kind === 'session' ? `S${s.lap.session} full` : `S${s.lap.session} L${s.lap.lapNo}`}
+              <span class="mono muted">${lapTime(s.lap.timeMs)}</span>${si === 0 && S.sel.length > 1 ? '<span class="tag ref">REF</span>' : ''}`;
+            c.onclick = e => toggleLap(f, s.lap, e.ctrlKey || e.metaKey || e.shiftKey);
+            chips.appendChild(c);
+          }
+          card.appendChild(chips);
+        }
+        el.appendChild(card);
+        return;
+      }
       for (const s of f.sessions) {
         const selW = S.sel.find(x => x.file === f && x.lap === s.whole);
         const sh = document.createElement('div');

@@ -168,7 +168,7 @@ const DRK = (() => {
     const best = timed.length ? timed.reduce((a, b) => (b.timeMs < a.timeMs ? b : a)) : null;
 
     const file = {
-      fileName, meta, date, durationMs, channels, laps, sessions, best, truncated,
+      fileName, format: 'drk', meta, date, durationMs, channels, laps, sessions, best, truncated,
       masterRate: Math.min(50, Math.max(...channels.map(c => c.rate), 1)),
     };
     file.byName = new Map(channels.map(c => [c.name, c]));

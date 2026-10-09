@@ -58,14 +58,14 @@ const App = (() => {
     // logs first, so a .gpk dropped together with its .drk finds it
     const files = [...list].sort((a, b) => /\.gpk$/i.test(a.name) - /\.gpk$/i.test(b.name));
     for (const f of files) {
-      if (!/\.(drk|xrk|gpk)$/i.test(f.name)) { toast(`${f.name}: only AiM .drk, .xrk and .gpk files are supported`); continue; }
+      if (!/\.(drk|xrk|gpk|vbo)$/i.test(f.name)) { toast(`${f.name}: only AiM .drk, .xrk, .gpk and Racelogic .vbo files are supported`); continue; }
       try { loadBuffer(await f.arrayBuffer(), f.name); } catch (e) { toast(`${f.name}: ${e.message}`); console.error(e); }
     }
   }
 
   function loadGpk(buf, name) {
     const gpk = DRK.parseGpk(buf);
-    const file = S.files.find(f => f.format !== 'xrk' && baseName(f.fileName) === baseName(name));
+    const file = S.files.find(f => f.format === 'drk' && baseName(f.fileName) === baseName(name));
     if (!file) { pendingGpk.set(baseName(name), gpk); toast(`${name}: GPS track loaded; open the matching .drk to use it`, 'info'); return; }
     DRK.attachGps(file, gpk);
     renderAll();
@@ -73,12 +73,13 @@ const App = (() => {
 
   function loadBuffer(buf, name) {
     if (/\.gpk$/i.test(name)) return loadGpk(buf, name);
-    // .xrk (RaceStudio3) starts with a "<h" message; .drk (RaceStudio2) with "RD"
+    // .vbo (Racelogic) is text; .xrk (RaceStudio3) starts with a "<h" message; .drk (RaceStudio2) with "RD"
     const head = new Uint8Array(buf, 0, Math.min(2, buf.byteLength));
-    const file = head[0] === 0x3c && head[1] === 0x68 ? XRK.parse(buf, name) : DRK.parse(buf, name);
+    const file = /\.vbo$/i.test(name) ? VBO.parse(buf, name)
+      : head[0] === 0x3c && head[1] === 0x68 ? XRK.parse(buf, name) : DRK.parse(buf, name);
     if (S.files.some(f => f.fileName === name && f.durationMs === file.durationMs)) { toast(`${name} is already open`); return; }
     const gpk = pendingGpk.get(baseName(name));
-    if (gpk && file.format !== 'xrk') { DRK.attachGps(file, gpk); pendingGpk.delete(baseName(name)); }
+    if (gpk && file.format === 'drk') { DRK.attachGps(file, gpk); pendingGpk.delete(baseName(name)); }
     S.files.push(file);
     if (file.truncated) toast(`${name}: file looks truncated, some data is missing`);
     const best = file.best || file.laps[0];
@@ -210,7 +211,7 @@ const App = (() => {
       card.innerHTML = `<div class="file-head"><div class="track">${esc(f.meta.track || 'Unknown track')}</div>
         <div class="sub">${esc(f.meta.vehicle)}${f.meta.driver ? ' · ' + esc(f.meta.driver) : ''}</div>
         <div class="sub">${esc(date)}${f.best ? ` · best <b class="mono">${lapTime(f.best.timeMs)}</b>` : ''}</div>
-        ${f.latCh ? '' : '<div class="sub" title="Open the .gpk with the same name from RaceStudio2\'s DATA folder for real GPS positions">No GPS track · add its .gpk</div>'}
+        ${f.latCh || f.format !== 'drk' ? '' : '<div class="sub" title="Open the .gpk with the same name from RaceStudio2\'s DATA folder for real GPS positions">No GPS track · add its .gpk</div>'}
         <button class="icon-btn close" title="Close file">×</button></div>`;
       card.querySelector('.close').onclick = () => closeFile(fi);
       for (const s of f.sessions) {
@@ -508,7 +509,9 @@ const App = (() => {
     note.hidden = !missing.length;
     if (missing.length) {
       note.innerHTML = `No GPS positions for ${missing.map(f => `<b>${esc(f.fileName)}</b>`).join(', ')}. ` +
-        `Open the matching <code>.gpk</code> file too (same name, next to the .drk in RaceStudio2's DATA folder) to show ${missing.length > 1 ? 'them' : 'it'} here.`;
+        (missing.some(f => f.format === 'drk')
+          ? `Open the matching <code>.gpk</code> file too (same name, next to the .drk in RaceStudio2's DATA folder) to show ${missing.length > 1 ? 'them' : 'it'} here.`
+          : 'This log has no latitude/longitude columns.');
     }
     const key = S.sel.map(x => x.file.fileName + '#' + x.lap.idx).join('|');
     if (key !== s.selKey) { s.selKey = key; s.viewKey = ''; }
@@ -660,7 +663,7 @@ const App = (() => {
     const blob = new Blob([lines.join('\r\n')], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = (S.sel[0]?.file.fileName || 'laps').replace(/\.(drk|xrk)$/i, '') + '_laps.csv';
+    a.download = (S.sel[0]?.file.fileName || 'laps').replace(/\.(drk|xrk|vbo)$/i, '') + '_laps.csv';
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }

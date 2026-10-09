@@ -1,6 +1,7 @@
 # Lapline
 
-A fast, modern viewer for AiM log files: RaceStudio2 `.drk` (Solo, Solo DL, ...) and RaceStudio3 `.xrk` (MXS, Solo 2 DL, ...).
+A fast, modern viewer for AiM log files: RaceStudio2 `.drk` (Solo, Solo DL, ...) and RaceStudio3 `.xrk` (MXS, Solo 2 DL, ...),
+plus Racelogic `.vbo` files from VBOX loggers and apps that export the format (RaceChrono, Harry's LapTimer, TrackAddict, ...).
 It runs entirely in your browser: no install, no server, and your data never leaves your machine.
 
 ## Run it
@@ -10,7 +11,7 @@ Files are still read locally in the browser and never uploaded.
 
 **Offline:** double-click `index.html` in a copy of this repo.
 
-Then drag in one or more `.drk` or `.xrk` files. For `.drk` logs, also drop in the `.gpk` file with the same name (RaceStudio2 saves it next to the `.drk`) to get real GPS positions. On Windows, RaceStudio2 stores downloads in `C:\AIM_SPORT\RaceStudio2\DATA`.
+Then drag in one or more `.drk`, `.xrk` or `.vbo` files. For `.drk` logs, also drop in the `.gpk` file with the same name (RaceStudio2 saves it next to the `.drk`) to get real GPS positions. On Windows, RaceStudio2 stores downloads in `C:\AIM_SPORT\RaceStudio2\DATA`.
 
 ## Features
 
@@ -26,7 +27,7 @@ Then drag in one or more `.drk` or `.xrk` files. For `.drk` logs, also drop in t
 - **Laps table** with lap and delta times, top speed, peak lateral and braking g, full-throttle %, max RPM, water and oil temps,
   plus a **theoretical best** built from the best of 12 equal-distance segments.
 - **Channels table** with rate, sample count, % valid, and min/mean/max, so a dead sensor is obvious at a glance.
-- Compare laps **across days and drivers**: open several files from the same track, even a mix of `.drk` and `.xrk`.
+- Compare laps **across days and drivers**: open several files from the same track, even a mix of `.drk`, `.xrk` and `.vbo`.
 - Click a session header to view the **whole session** (handy for temps and battery).
 - Imperial/metric toggle, light/dark theme, and **CSV export** of the selected laps.
 
@@ -37,6 +38,8 @@ Then drag in one or more `.drk` or `.xrk` files. For `.drk` logs, also drop in t
 - The Map tab loads satellite tiles from Esri, so it needs an internet connection and Esri sees which area you're viewing. Your log data still stays in the browser.
 - Scaling for the BMW CAN channels, GPS channels, batteries and internal accelerometers was calibrated against RaceStudio2 CSV exports.
   Channels from other ECUs/sensors whose type id isn't known yet are shown raw. Add them to `converter()` in `js/drk.js`.
+- `.vbo` laps come from the start/finish line in the file's `[laptiming]` section (a `Finish` line too makes it a point-to-point run).
+  Without one, the whole log is shown as a single lap. `.vbo` has no standard track or vehicle field; Lapline reads `Track:`, `Vehicle:` and `Driver:` lines from `[comments]` if present.
 - The pre-2006 `.drk` format (non-GPS loggers) isn't supported.
 
 See `FORMAT.md` for the file layout.

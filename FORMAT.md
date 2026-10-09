@@ -115,3 +115,32 @@ A stream of tagged messages and sample records. All integers are little-endian; 
 2-byte samples are IEEE half floats; 4-byte samples are float32 (format 3 = int32). Batteries are logged in mV.
 
 Unit codes: 1 %, 3 g, 4 deg, 5 deg/s, 8 m, 11 raw, 14 bar, 15 rpm, 16 km/h, 17 °C, 18 ms, 19 Nm, 21 V, 22 l, 31 gear.
+
+# Racelogic `.vbo` layout
+
+Plain text (CRLF, Latin-1). The first line is `File created on DD/MM/YYYY @ HH:MM:SS`, then `[section]` blocks:
+
+| Section | Contents |
+|---|---|
+| `[header]` | Long channel names, one per line (informational) |
+| `[channel units]` | Units, either one per column or only for the non-GPS columns (writers differ) |
+| `[comments]` | Free text. Some converters add `Track: ...`, `Vehicle: ...`, `Driver: ...` lines, which Lapline uses for the session info |
+| `[laptiming]` | `Start  x1 y1 x2 y2 ¬ name`: the two ends of the start/finish line in minutes. Optional `Finish` and `Split` lines in the same form |
+| `[column names]` | Short column names, space separated; these define the `[data]` columns |
+| `[data]` | One sample per line, space (sometimes comma) separated, to end of file |
+
+Standard columns:
+
+| Column | Meaning |
+|---|---|
+| `sats` | Satellites in the low 6 bits; bit 6 = brake trigger, bit 7 = DGPS |
+| `time` | UTC as `HHMMSS.SS`; wraps at midnight |
+| `lat` | Latitude in minutes (degrees × 60), north positive |
+| `long` | Longitude in minutes, **west positive** (negated for the usual east-positive degrees) |
+| `velocity` | km/h |
+| `heading` | Degrees, 0 = north |
+| `height` | Metres |
+
+Everything else (CAN, analog, IMU, `avi*` video sync) follows. Writers disagree on the coordinate order and longitude
+sign in `[laptiming]`, so the reader tries each interpretation and keeps the one whose line lies on the driven path.
+Line crossings are interpolated between samples, so lap times aren't quantised to the sample rate.
